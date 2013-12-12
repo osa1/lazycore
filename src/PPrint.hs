@@ -16,34 +16,6 @@ iNewline :: Iseq            -- New line with indentation
 iIndent  :: Iseq -> Iseq    -- Indent an iseq
 iDisplay :: Iseq -> String  -- Turn an iseq into a string
 
-pprAExpr :: CoreExpr -> Iseq
-pprAExpr e
-  | isAtomicExpr e = pprExpr e
-  | otherwise      = iStr "(" `iAppend` pprExpr e `iAppend` iStr ")"
-
--- TODO: precedences and parens
-pprExpr :: CoreExpr -> Iseq
-pprExpr (EVar v) = iStr v
-pprExpr (EAp e1 e2) = pprExpr e1 `iAppend` iStr " " `iAppend` pprAExpr e2
-pprExpr (ELet isrec defns expr) =
-    iConcat [ iStr keyword, iNewline,
-              iStr " ", iIndent (pprDefns defns), iNewline,
-              iStr "in ", pprExpr expr ]
-  where
-    keyword = if isrec then "letrec" else "let"
-pprExpr (ENum n) = iNum n
-pprExpr (EConstr tag arity) = iConcat [ iStr "Pack{", iInterleave (iStr ",") (map iNum [tag, arity]) ]
-pprExpr (ELam names body) = iConcat (iStr "(\\" : (map iStr names) ++ [iStr ". ", pprExpr body, iStr ")"])
-
-pprDefns :: [(Name, CoreExpr)] -> Iseq
-pprDefns defns = iInterleave sep (map pprDefn defns)
-  where
-    sep = iConcat [ iStr ";", iNewline ]
-
-pprDefn :: (Name, CoreExpr) -> Iseq
-pprDefn (name, expr) =
-    iConcat [ iStr name, iStr " = ", iIndent (pprExpr expr) ]
-
 iConcat :: [Iseq] -> Iseq
 iConcat = foldl iAppend iNil
 
@@ -51,9 +23,6 @@ iInterleave :: Iseq -> [Iseq] -> Iseq
 iInterleave _ []     = iNil
 iInterleave _ [s]    = s
 iInterleave sep seqs = foldl1 (\acc n -> acc `iAppend` sep `iAppend` n) seqs
-
-pprint :: CoreProgram -> String
-pprint prog = iDisplay (pprProgram prog)
 
 data Iseq
     = INil
@@ -91,9 +60,6 @@ space i = replicate i ' '
 
 iDisplay seq = flatten 0 [(seq, 0)]
 
-pprProgram :: CoreProgram -> Iseq
-pprProgram = undefined -- definition is not given in the book
-
 iNum :: Int -> Iseq
 iNum n = iStr (show n)
 
@@ -106,3 +72,39 @@ iLayn :: [Iseq] -> Iseq
 iLayn seqs = iConcat (map lay_item (zip [1..] seqs))
   where
     lay_item (n, seq) = iConcat [ iFWNum 4 n, iStr ") ", iIndent seq, iNewline ]
+
+
+
+pprAExpr :: CoreExpr -> Iseq
+pprAExpr e
+  | isAtomicExpr e = pprExpr e
+  | otherwise      = iStr "(" `iAppend` pprExpr e `iAppend` iStr ")"
+
+-- TODO: precedences and parens
+pprExpr :: CoreExpr -> Iseq
+pprExpr (EVar v) = iStr v
+pprExpr (EAp e1 e2) = pprExpr e1 `iAppend` iStr " " `iAppend` pprAExpr e2
+pprExpr (ELet isrec defns expr) =
+    iConcat [ iStr keyword, iNewline,
+              iStr " ", iIndent (pprDefns defns), iNewline,
+              iStr "in ", pprExpr expr ]
+  where
+    keyword = if isrec then "letrec" else "let"
+pprExpr (ENum n) = iNum n
+pprExpr (EConstr tag arity) = iConcat [ iStr "Pack{", iInterleave (iStr ",") (map iNum [tag, arity]) ]
+pprExpr (ELam names body) = iConcat (iStr "(\\" : (map iStr names) ++ [iStr ". ", pprExpr body, iStr ")"])
+
+pprDefns :: [(Name, CoreExpr)] -> Iseq
+pprDefns defns = iInterleave sep (map pprDefn defns)
+  where
+    sep = iConcat [ iStr ";", iNewline ]
+
+pprDefn :: (Name, CoreExpr) -> Iseq
+pprDefn (name, expr) =
+    iConcat [ iStr name, iStr " = ", iIndent (pprExpr expr) ]
+
+pprProgram :: CoreProgram -> Iseq
+pprProgram = undefined -- definition is not given in the book
+
+pprint :: CoreProgram -> String
+pprint prog = iDisplay (pprProgram prog)

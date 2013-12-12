@@ -28,12 +28,6 @@ recursive, nonRecursive :: IsRec
 recursive    = True
 nonRecursive = False
 
-bindersOf :: [(a, b)] -> [a]
-bindersOf = map fst
-
-rhssOf :: [(a, b)] -> [b]
-rhssOf = map snd
-
 type Alter a = (Int,        -- Tag
                 [a],        -- List of bound variables
                 Expr a)     -- Right hand side of arrow
