@@ -7,7 +7,7 @@ import Heap
 import TiStats
 import PPrint
 
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import Data.Maybe (fromJust)
 import qualified Text.Parsec as P
 
