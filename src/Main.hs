@@ -120,11 +120,18 @@ instantiate (ELet isrec defs body) heap env = instantiateLet isrec defs body hea
 instantiate (ECase e alts) _ _ = error "Can't instantiate case exprs"
 
 instantiateConstr tag arity heap env = error "Can't instantiate constructors yet"
-instantiateLet isrec defs body heap env = error "Can't instantiate let(rec)s yet"
+instantiateLet False defs body heap env = iter defs heap env
+  where
+    iter [] heap' env' = instantiate body heap' env'
+    iter ((name, rhs) : defs) heap' env' =
+      let (heap'', addr) = instantiate rhs heap' env in
+      iter defs heap'' (M.insert name addr env')
 
 scStep :: TiState -> Name -> [Name] -> CoreExpr -> TiState
 scStep (stack, dump, heap, globals, stats) sc_name arg_names body =
-    (new_stack, dump, new_heap, globals, stats)
+    if length stack < length arg_names
+      then error "not enough arguments"
+      else (new_stack, dump, new_heap, globals, stats)
   where
     new_stack = result_addr : (drop (length arg_names + 1) stack)
     (new_heap, result_addr) = instantiate body heap env
@@ -189,4 +196,4 @@ showFWAddr addr = iStr (space (4 - length str) ++ str)
 
 showStats :: TiState -> Iseq
 showStats (stack, dump, heap, globals, stats) =
-    iConcat [ iNewline, iNewline, iStr "Total number of steps = ", iNum (tiStatGetSteps stats) ]
+    iConcat [ iStr "Total number of steps = ", iNum (tiStatGetSteps stats), iNewline ]
