@@ -87,7 +87,7 @@ expr = choice [ try app, try infixApp, try letE, try letrecE, try caseE, try lam
       return (ELam vars body)
 
 defns :: Parser [(Name, CoreExpr)]
-defns = many1 $ do
+defns = flip sepBy (spChar ';') $ do
     defName <- var
     spChar '='
     body <- expr
