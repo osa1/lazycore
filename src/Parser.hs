@@ -23,11 +23,11 @@ keywords :: [String]
 keywords = ["let", "letrec", "case", "in", "of", "Pack"]
 
 program :: Parser CoreProgram
-program = many1 sc
+program = sc `sepBy` spChar ';'
 
 var :: Parser Name
 var = do
-    firstChar <- lower
+    firstChar <- letter
     rest <- many idChar
     when (firstChar : rest `elem` keywords) (parserFail "expected var, found keyword")
     return (firstChar : rest) <* spaces
@@ -43,17 +43,17 @@ sc = do
     return (scName, args, body)
 
 expr :: Parser CoreExpr
-expr = choice [ try app, try infixApp, try letE, try letrecE, try caseE, try lambda, aexp ]
+expr = choice [ try app, try infixApp, try letE, try letrecE, try caseE, try lambda, aexp ] <* spaces
   where
     app = do
-      fn <- choice [ letE, letrecE, caseE, lambda, aexp ]
-      rest <- many1 expr
+      fn <- choice [ letE, letrecE, caseE, lambda, aexp ] <* spaces
+      rest <- many1 $ choice [ letE, letrecE, caseE, lambda, aexp ] <* spaces
       return $ mkApp fn rest
 
     mkApp = foldl EAp
 
     infixApp = do
-      e1 <- choice (map try [ app, letE, letrecE, caseE, lambda, aexp ])
+      e1 <- choice (map try [ app, letE, letrecE, caseE, lambda, aexp ]) <* spaces
       fn <- binop
       e2 <- expr
       return $ EAp (EAp (EVar fn) e1) e2
