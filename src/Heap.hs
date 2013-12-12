@@ -10,16 +10,28 @@ type Heap a = (Int,         -- number of objects
 
 type Addr = Int
 
-default(Int)
-hInitial                             = (0, [1..], M.empty)
+hInitial :: Heap a
+hInitial = (0, [1..], M.empty)
+
+hAlloc :: Heap a -> a -> (Heap a, Addr)
 hAlloc  (size, next : free, cts) n   = ((size + 1, free, M.insert next n cts), next)
-hUpdate (size, free,        cts) a n = (size, free, M.insert a n cts)
-hFree   (size, free,        cts) a   = (size-1, a:free, M.delete a cts)
-hLookup (size, free,        cts) a   = case M.lookup a cts of
-                                         Nothing -> error $ "can't find node " ++ showaddr a ++ " in heap"
-                                         Just r  -> r
+
+hUpdate :: Heap a -> Addr -> a -> Heap a
+hUpdate (size, free, cts) a n = (size, free, M.insert a n cts)
+
+hFree :: Heap a -> Addr -> Heap a
+hFree (size, free, cts) a   = (size-1, a:free, M.delete a cts)
+
+hLookup :: Heap a -> Addr -> a
+hLookup (size, free, cts) a = case M.lookup a cts of
+                                       Nothing -> error $ "can't find node " ++ showaddr a ++ " in heap"
+                                       Just r  -> r
+
+hAddressses :: Heap a -> [Addr]
 hAddressses (_, _, cts) = M.keys cts
+
+hSize :: Heap a -> Int
 hSize (size, _, _) = size
-hNull = 0
-hIsnull = (==) 0
+
+showaddr :: Addr -> String
 showaddr a = "#" ++ show a
