@@ -87,7 +87,7 @@ expr = choice [ try app, try infixApp, try letE, try letrecE, try caseE, try lam
       return (ELam vars body)
 
 defns :: Parser [(Name, CoreExpr)]
-defns = flip sepBy (spChar ';') $ do
+defns = flip sepBy1 (spChar ';') $ do
     defName <- var
     spChar '='
     body <- expr
@@ -112,7 +112,7 @@ binop = choice [ arithop, relop, boolop ]
     boolop = choice [ spStr "&", spStr "|" ]
 
 aexp :: Parser CoreExpr
-aexp = choice [ EVar <$> var, ENum <$> int, pack, paren ] <* spaces
+aexp = choice [ EVar <$> try var, ENum <$> int, pack, paren ] <* spaces
   where
     pack = do
       spStr "Pack"

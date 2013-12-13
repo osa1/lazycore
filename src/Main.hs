@@ -11,6 +11,8 @@ import qualified Data.Map.Strict as M
 import Data.Maybe (fromJust)
 import qualified Text.Parsec as P
 
+import Debug.Trace
+
 
 runProg :: String -> String
 runProg = showResults . eval . compile . parse
@@ -33,6 +35,8 @@ type TiHeap = Heap Node
 data Node = NAp Addr Addr
           | NSupercomb Name [Name] CoreExpr
           | NNum Int
+          | NInd Addr -- Indirection node
+          deriving (Show)
 
 type TiGlobals = M.Map Name Addr
 
@@ -88,12 +92,16 @@ step state@(stack, dump, heap, globals, stats) = dispatch (hLookup heap (head st
     dispatch (NNum n)                  = numStep state n
     dispatch (NAp a1 a2)               = apStep state a1 a2
     dispatch (NSupercomb sc args body) = scStep state sc args body
+    dispatch (NInd n)                  = indStep state n
 
 numStep :: TiState -> Int -> TiState
 numStep state n = error "Number applied as a function!"
 
 apStep :: TiState -> Addr -> Addr -> TiState
 apStep (stack, dump, heap, globals, stats) a1 a2 = (a1 : stack, dump, heap, globals, stats)
+
+indStep :: TiState -> Int -> TiState
+indStep (stack, dump, heap, globals, stats) n = (n : tail stack, dump, heap, globals, stats)
 
 getargs :: TiHeap -> TiStack -> [Addr]
 getargs heap (sc : stack) = map get_arg stack
@@ -113,28 +121,43 @@ instantiate (EAp e1 e2) heap env = hAlloc heap2 (NAp a1 a2)
 instantiate (EVar v) heap env = (heap, val)
   where
     val = case M.lookup v env of
-            Nothing -> error $ "Undefined name " ++ show v
+            Nothing -> error $ "Undefined name " ++ show v ++ "\n" ++ show env
             Just val' -> val'
 instantiate (EConstr tag arity) heap env = instantiateConstr tag arity heap env
 instantiate (ELet isrec defs body) heap env = instantiateLet isrec defs body heap env
 instantiate (ECase e alts) _ _ = error "Can't instantiate case exprs"
 
 instantiateConstr tag arity heap env = error "Can't instantiate constructors yet"
-instantiateLet False defs body heap env = iter defs heap env
+
+instantiateLet :: Bool -> [(Name, CoreExpr)] -> CoreExpr -> Heap Node -> M.Map Name Addr -> (TiHeap, Addr)
+instantiateLet isrec defs body heap env = iter defs heap env
   where
     iter [] heap' env' = instantiate body heap' env'
     iter ((name, rhs) : defs) heap' env' =
-      let (heap'', addr) = instantiate rhs heap' env in
+      let (heap'', addr) = instantiate rhs heap' (if isrec then env' else env) in
       iter defs heap'' (M.insert name addr env')
 
+instantiateAndUpdate
+  :: CoreExpr           -- Body of supercombinator
+     -> Addr            -- Address of node to update
+     -> TiHeap          -- Heap before instantiation
+     -> M.Map Name Addr -- Associate parameters to addresses
+     -> TiHeap
+instantiateAndUpdate (EAp e1 e2) upd_addr heap env = hUpdate heap2 upd_addr (NAp a1 a2)
+  where
+    (heap1, a1) = instantiate e1 heap env
+    (heap2, a2) = instantiate e2 heap1 env
+
 scStep :: TiState -> Name -> [Name] -> CoreExpr -> TiState
-scStep (stack, dump, heap, globals, stats) sc_name arg_names body =
-    if length stack < length arg_names
+scStep (stack, dump, heap, globals, stats) sc_name arg_names body = (new_stack, dump, new_heap', globals, stats)
+    {-if length stack < length arg_names
       then error "not enough arguments"
-      else (new_stack, dump, new_heap, globals, stats)
+      else (new_stack, dump, new_heap, globals, stats)-}
   where
     new_stack = result_addr : (drop (length arg_names + 1) stack)
     (new_heap, result_addr) = instantiate body heap env
+    new_heap' = -- heap with indirection node added
+      hUpdate new_heap (stack !! length arg_names) (NInd result_addr)
     env = M.union (M.fromList arg_bindings) globals
     arg_bindings = zip arg_names (getargs heap stack)
 
@@ -185,6 +208,7 @@ showNode (NSupercomb name args body) =
             , iStr " [ ", iInterleave (iStr " ") (map iStr args), iStr " ]"
             ]
 showNode (NNum n) = iStr "NNum " `iAppend` iNum n
+showNode (NInd n) = iStr "NInd " `iAppend` iNum n
 
 showAddr :: Addr -> Iseq
 showAddr addr = iStr (show addr)
@@ -197,3 +221,20 @@ showFWAddr addr = iStr (space (4 - length str) ++ str)
 showStats :: TiState -> Iseq
 showStats (stack, dump, heap, globals, stats) =
     iConcat [ iStr "Total number of steps = ", iNum (tiStatGetSteps stats), iNewline ]
+
+testPgm = unlines
+  [ "pair x y f = f x y ;"
+  , "fst p = p K ;"
+  , "snd p = p K1 ;"
+  , "f x y = letrec"
+  , "          a = pair x b ;"
+  , "          b = pair y a"
+  , "        in"
+  , "        fst (snd (snd (snd a))) ;"
+  , "main = f 3 4"
+  ]
+
+testPgm1 = unlines
+  [ "id x = x ;"
+  , "main = twice twice id 3"
+  ]
