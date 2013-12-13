@@ -6,6 +6,7 @@ import Parser
 import Heap
 import TiStats
 import PPrint
+import Programs
 
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromJust)
@@ -221,20 +222,3 @@ showFWAddr addr = iStr (space (4 - length str) ++ str)
 showStats :: TiState -> Iseq
 showStats (stack, dump, heap, globals, stats) =
     iConcat [ iStr "Total number of steps = ", iNum (tiStatGetSteps stats), iNewline ]
-
-testPgm = unlines
-  [ "pair x y f = f x y ;"
-  , "fst p = p K ;"
-  , "snd p = p K1 ;"
-  , "f x y = letrec"
-  , "          a = pair x b ;"
-  , "          b = pair y a"
-  , "        in"
-  , "        fst (snd (snd (snd a))) ;"
-  , "main = f 3 4"
-  ]
-
-testPgm1 = unlines
-  [ "id x = x ;"
-  , "main = twice twice id 3"
-  ]

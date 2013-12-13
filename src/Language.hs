@@ -49,21 +49,6 @@ type ScDefn a = (Name,      -- Name of the supercombinator
 
 type CoreScDefn = ScDefn Name
 
-pgm1 :: CoreProgram
--- main = double 21 ;
--- double x = x + x
-pgm1 =
-    [ ("main",   [],    EAp (EVar "double") (ENum 21))
-    , ("double", ["x"], EAp (EAp (EVar "+") (EVar "x")) (EVar "x"))
-    ]
-
-exp1 :: CoreExpr
-exp1 = ELet nonRecursive
-            [("double", ELet nonRecursive
-                             [("test", ELam ["x"] (EAp (EAp (EVar "+") (EVar "x")) (EVar "x")))]
-                             (EVar "test"))]
-            (EAp (EVar "double") (ENum 21))
-
 preludeDefs :: CoreProgram
 preludeDefs =
     -- I x = x ;

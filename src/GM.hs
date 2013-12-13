@@ -7,11 +7,12 @@ import Language
 import Parser
 import PPrint
 import Heap
+import Programs
 
 import qualified Text.Parsec as P
 import qualified Data.Map.Strict as M
 
---import Debug.Trace
+import Debug.Trace
 
 
 runProg :: String -> String
@@ -46,7 +47,8 @@ data Instruction
     | Pushint Int
     | Push Int
     | Mkap
-    | Slide Int
+    | Update Int
+    | Pop Int
     deriving ( Show, Eq )
 
 type GmStack = [Addr]
@@ -69,7 +71,8 @@ data Node
     = NNum Int              -- Numbers
     | NAp Addr Addr         -- Applications
     | NGlobal Int GmCode    -- Globals
-    deriving ( Show )
+    | NInd Addr             -- Indirections
+    deriving ( Show, Eq )
 
 type GmGlobals = M.Map Name Addr
 
@@ -134,7 +137,7 @@ type GmCompiler = CoreExpr -> GmEnvironment -> GmCode
 type GmEnvironment = M.Map Name Int
 
 compileR :: GmCompiler
-compileR e env = compileC e env ++ [Slide (M.size env + 1), Unwind]
+compileR e env = compileC e env ++ [Update (M.size env), Pop (M.size env), Unwind]
 
 compileC :: GmCompiler
 compileC (EVar v) env =
@@ -169,8 +172,8 @@ gmFinal s = case getCode s of
 step :: GmState -> GmState
 step state =
     let new_state = dispatch i (putCode is state) in
-    --trace ("new stack after: " ++ iDisplay (showInstruction i) ++ "\n" ++ iDisplay (showStack new_state)) new_state
-    new_state
+    trace ("new stack after: " ++ iDisplay (showInstruction i) ++ "\n" ++ iDisplay (showStack new_state)) new_state
+    --new_state
   where
     (i : is) = getCode state
 
@@ -190,23 +193,28 @@ dispatch Mkap state = putHeap heap' (putStack (addr : as') state)
 
 dispatch (Push n) state = putStack (a : as) state
   where as = getStack state
-        a  = (as !! n+1)
+        a  = getArg (hLookup (getHeap state) (as !! (n+1)))
 
         getArg :: Node -> Addr
-        getArg (NAp _ a2) = a2 -- I don't understand this part,
-                               -- why is it have to be a NAp?
-        getArg NNum{} = error "getArg of NNum"
-        getArg NGlobal{} = error "getArg of NGlobal"
+        getArg (NAp a1 a2) = a2
+        getArg n = error $ "getArg of " ++ show n
 
-dispatch (Slide n) state = putStack (a : drop n as) state
+dispatch (Update n) state = putStack as (putHeap (hUpdate heap (as !! n) (NInd a)) state)
   where (a : as) = getStack state
+        heap = getHeap state
+
+dispatch (Pop n) state = putStack (drop n (getStack state)) state
+
+{-dispatch (Slide n) state = putStack (a : drop n as) state
+  where (a : as) = getStack state-}
 
 dispatch Unwind state = newState (hLookup heap a)
   where (a : as) = getStack state
         heap     = getHeap state
 
+        newState (NInd n) = putCode [Unwind] (putStack (n : as) state)
         newState NNum{} = state
-        newState (NAp a1 a2) = putCode [Unwind] (putStack (a2 : a1 : as) state)
+        newState (NAp a1 _) = putCode [Unwind] (putStack (a1 : a : as) state)
         newState (NGlobal n c)
           | length as < n = error $
               concat [ "Unwinding with too few arguments. "
@@ -225,7 +233,7 @@ showResults states = iDisplay $ iConcat
       iInterleave iNewline (map (showSC s) (M.toList $ getGlobals s)),
       iNewline, iStr "State transitions", iNewline,
       iLayn (map showState states),
-      showStats (last states)]
+      showStats (last states) ]
   where (s : _) = states
 
 showSC :: GmState -> (Name, Addr) -> Iseq
@@ -266,16 +274,7 @@ showNode s a (NGlobal ar _) = iConcat [ iStr "Global ", iStr v, iStr "[", iNum a
   where v = head [n | (n, b) <- M.toList (getGlobals s), a == b]
 showNode _ _ (NAp a1 a2) = iConcat [ iStr "Ap ", iStr (showaddr a1),
                                      iStr " ", iStr (showaddr a2) ]
+showNode _ _ (NInd n) = iConcat [ iStr "#", iNum n ]
 
 showStats :: GmState -> Iseq
 showStats s = iConcat [ iStr "Steps taken = ", iNum (statGetSteps (getStats s)) ]
-
-
---
--- programs
---
-
-pgm1, pgm2, pgm3 :: String
-pgm1 = "main = I 3"
-pgm2 = "id = S K K ; main = id 3"
-pgm3 = "id = S K K ; main = twice twice twice id 3"
