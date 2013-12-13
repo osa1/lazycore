@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
 
 module GM where
 
@@ -12,7 +12,7 @@ import Programs
 import qualified Text.Parsec as P
 import qualified Data.Map.Strict as M
 
-import Debug.Trace
+--import Debug.Trace
 
 
 runProg :: String -> String
@@ -49,6 +49,8 @@ data Instruction
     | Mkap
     | Update Int
     | Pop Int
+    | Alloc Int
+    | Slide Int
     deriving ( Show, Eq )
 
 type GmStack = [Addr]
@@ -146,7 +148,34 @@ compileC (EVar v) env =
       Just n  -> [Push n]
 compileC (ENum n) _ = [Pushint n]
 compileC (EAp e1 e2) env = compileC e2 env ++ compileC e1 (argOffset 1 env) ++ [Mkap]
-  where argOffset n env = M.map (+ n) env
+compileC (ELet recursive defs e) env
+  | recursive = compileLetrec defs e env
+  | otherwise = compileLet    defs e env
+
+argOffset :: Int -> GmEnvironment -> GmEnvironment
+argOffset n env = M.map (+ n) env
+
+compileLet :: [(Name, CoreExpr)] -> GmCompiler
+compileLet defs expr env = compileLet' defs env ++ compileC expr env' ++ [Slide (length defs)]
+  where
+    env' = mkLetEnv defs env
+
+    compileLet' :: [(Name, CoreExpr)] -> GmEnvironment -> GmCode
+    compileLet' [] _ = []
+    compileLet' ((_, expr) : defs) env = compileC expr env ++ compileLet' defs (argOffset 1 env)
+
+compileLetrec :: [(Name, CoreExpr)] -> GmCompiler
+compileLetrec defs expr env = [Alloc n] ++ compDefs ++ compileC expr env' ++ [Slide n]
+  where
+    env' = mkLetEnv defs env
+    n = length defs
+
+    compDefs :: GmCode
+    compDefs = concat $ map (\(i, def) -> compileC def env' ++ [Update i]) (zip [n-1, n-2 .. 0] (map snd defs))
+
+mkLetEnv :: [(Name, CoreExpr)] -> GmEnvironment -> GmEnvironment
+mkLetEnv defs env = M.fromList (zip (map fst defs) [n-1, n-2 .. 0]) `M.union` argOffset n env
+  where n = length defs
 
 --
 -- Interpreter
@@ -172,8 +201,8 @@ gmFinal s = case getCode s of
 step :: GmState -> GmState
 step state =
     let new_state = dispatch i (putCode is state) in
-    trace ("new stack after: " ++ iDisplay (showInstruction i) ++ "\n" ++ iDisplay (showStack new_state)) new_state
-    --new_state
+    --trace ("new stack after: " ++ iDisplay (showInstruction i) ++ "\n" ++ iDisplay (showStack new_state)) new_state
+    new_state
   where
     (i : is) = getCode state
 
@@ -193,11 +222,7 @@ dispatch Mkap state = putHeap heap' (putStack (addr : as') state)
 
 dispatch (Push n) state = putStack (a : as) state
   where as = getStack state
-        a  = getArg (hLookup (getHeap state) (as !! (n+1)))
-
-        getArg :: Node -> Addr
-        getArg (NAp a1 a2) = a2
-        getArg n = error $ "getArg of " ++ show n
+        a  = as !! n
 
 dispatch (Update n) state = putStack as (putHeap (hUpdate heap (as !! n) (NInd a)) state)
   where (a : as) = getStack state
@@ -205,12 +230,9 @@ dispatch (Update n) state = putStack as (putHeap (hUpdate heap (as !! n) (NInd a
 
 dispatch (Pop n) state = putStack (drop n (getStack state)) state
 
-{-dispatch (Slide n) state = putStack (a : drop n as) state
-  where (a : as) = getStack state-}
-
 dispatch Unwind state = newState (hLookup heap a)
-  where (a : as) = getStack state
-        heap     = getHeap state
+  where stack@(a : as) = getStack state
+        heap           = getHeap state
 
         newState (NInd n) = putCode [Unwind] (putStack (n : as) state)
         newState NNum{} = state
@@ -219,8 +241,31 @@ dispatch Unwind state = newState (hLookup heap a)
           | length as < n = error $
               concat [ "Unwinding with too few arguments. "
                      , show n, " - ", show c ]
-          | otherwise     = putCode c state
+          | otherwise     = putCode c (putStack (rearrange n heap stack) state)
 
+        rearrange :: Int -> GmHeap -> GmStack -> GmStack
+        rearrange n heap as = take n as' ++ drop n as
+          where as' = map (getArg . hLookup heap) (tail as)
+
+        getArg :: Node -> Addr
+        getArg (NAp _ a2) = a2
+        getArg n = error $ "getArg of " ++ show n
+
+dispatch (Alloc n) state = putStack (new_addrs ++ stack) (putHeap new_heap state)
+  where
+    heap = getHeap state
+    stack = getStack state
+
+    (new_heap, new_addrs) = allocNodes n heap
+
+    allocNodes :: Int -> GmHeap -> (GmHeap, [Addr])
+    allocNodes 0 heap = (heap, [])
+    allocNodes n heap = (heap2, a : as)
+      where (heap1, as) = allocNodes (n-1) heap
+            (heap2, a)  = hAlloc heap1 (NInd hNull)
+
+dispatch (Slide n) state = putStack (a : drop n as) state
+  where (a : as) = getStack state
 
 
 --
@@ -277,4 +322,4 @@ showNode _ _ (NAp a1 a2) = iConcat [ iStr "Ap ", iStr (showaddr a1),
 showNode _ _ (NInd n) = iConcat [ iStr "#", iNum n ]
 
 showStats :: GmState -> Iseq
-showStats s = iConcat [ iStr "Steps taken = ", iNum (statGetSteps (getStats s)) ]
+showStats s = iConcat [ iStr "Steps taken = ", iNum (statGetSteps (getStats s)), iNewline ]

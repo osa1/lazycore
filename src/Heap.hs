@@ -35,3 +35,6 @@ hSize (size, _, _) = size
 
 showaddr :: Addr -> String
 showaddr a = "#" ++ show a
+
+hNull :: Addr
+hNull = 0
