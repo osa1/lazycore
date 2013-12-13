@@ -1,6 +1,6 @@
 module Programs where
 
-pgm1, pgm2, pgm3, pgm4, pgm5 :: String
+pgm1, pgm2, pgm3, pgm4, pgm5, pgm6, pgm7, pgm8 :: String
 pgm1 = "main = I 3"
 pgm2 = "id = S K K ; main = id 3"
 pgm3 = "id = S K K ; main = twice twice twice id 3"
@@ -15,6 +15,14 @@ pgm6 = unlines
   , "infinite x = cons x (infinite x) ;"
   , "main = hd (tl (infinite 4))"
   ]
+pgm7 = "main = let id1 = I I I in id1 id1 3"
+pgm8 = unlines
+  [ "oct g x = let h = twice g"
+  , "          in let k = twice h"
+  , "          in k (k x) ;"
+  , "main = oct I 4"
+  ]
+
 
 
 testPgm :: String
