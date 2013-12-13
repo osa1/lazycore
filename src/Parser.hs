@@ -46,9 +46,11 @@ expr :: Parser CoreExpr
 expr = choice [ try app, try infixApp, try letE, try letrecE, try caseE, try lambda, aexp ] <* spaces
   where
     app = do
-      fn <- choice [ letE, letrecE, caseE, lambda, aexp ] <* spaces
-      rest <- many1 $ choice [ letE, letrecE, caseE, lambda, aexp ] <* spaces
-      return $ mkApp fn rest
+        fn <- expr' <* spaces
+        rest <- many1 $ expr' <* spaces
+        return $ mkApp fn rest
+      where
+        expr' = choice (map try [ letE, letrecE, caseE, lambda, aexp ])
 
     mkApp = foldl EAp
 
