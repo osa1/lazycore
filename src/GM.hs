@@ -19,7 +19,7 @@ runProg :: String -> String
 runProg = showResults . eval . compile . parse
 
 compileProg :: String -> String
-compileProg = iDisplay . showState . compile . parse
+compileProg = iDisplay . showCompileState . compile . parse
 
 parse :: String -> CoreProgram
 parse s = case P.parse program s s of
@@ -299,10 +299,16 @@ dispatch Le state = comparison (<=) state
 dispatch Gt state = comparison (>) state
 dispatch Ge state = comparison (>=) state
 
-dispatch (Cond t f) state = putStack as (putCode ((if a == 0 then f else t) ++ i) state)
+dispatch (Cond t f) state = putStack as (putCode ((if condB then f else t) ++ i) state)
   where
     i = getCode state
     (a : as) = getStack state
+
+    cond = hLookup (getHeap state) a
+    condB = case cond of
+              NNum 0 -> False
+              NNum 1 -> True
+              _ -> error "condition is not a number"
 
 
 boxInteger :: Int -> GmState -> GmState
@@ -379,6 +385,13 @@ showState s = iConcat
     [ showStack s,                  iNewline,
       showDump s,                   iNewline,
       showInstructions (getCode s), iNewline ]
+
+showCompileState :: GmState -> Iseq
+showCompileState s = iConcat
+    [ showStack s,                  iNewline,
+      showDump s,                   iNewline,
+      showInstructions (getCode s), iNewline,
+      iInterleave iNewline (map (showSC s) (M.toList $ getGlobals s)) ]
 
 showStack :: GmState -> Iseq
 showStack s = iConcat
