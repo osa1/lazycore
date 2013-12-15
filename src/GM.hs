@@ -18,6 +18,9 @@ import qualified Data.Map.Strict as M
 runProg :: String -> String
 runProg = showResults . eval . compile . parse
 
+runProg' :: String -> GmState
+runProg' = eval' . compile . parse
+
 compileProg :: String -> String
 compileProg = iDisplay . showCompileState . compile . parse
 
@@ -199,6 +202,15 @@ eval state = state : restStates
     restStates
       | gmFinal state = []
       | otherwise     = eval nextState
+
+    nextState = doAdmin (step state)
+
+eval' :: GmState -> GmState
+eval' state = newState
+  where
+    newState
+      | gmFinal state = state
+      | otherwise     = eval' nextState
 
     nextState = doAdmin (step state)
 

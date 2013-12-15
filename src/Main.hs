@@ -222,3 +222,5 @@ showFWAddr addr = iStr (space (4 - length str) ++ str)
 showStats :: TiState -> Iseq
 showStats (stack, dump, heap, globals, stats) =
     iConcat [ iStr "Total number of steps = ", iNum (tiStatGetSteps stats), iNewline ]
+
+main = return ()

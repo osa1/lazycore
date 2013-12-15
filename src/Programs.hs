@@ -44,11 +44,10 @@ pgm13 = unlines
   , "main = gcd 6 10"
   ]
 pgm14 = unlines
-  [ "nfib n = if (n == 0) 1 (1 + ((nfib (n-1)) + (nfib (n-2)))) ;"
-  , "main = nfib 4"
+  [ "nfib n = if (n == 0) 0 (if (n == 1) 1 ((nfib (n-1)) + (nfib (n-2)))) ;"
+  , "main = nfib 5"
   ]
-
-testPgm = unlines
+pgm15 = unlines
   [ "pair x y f = f x y ;"
   , "fst p = p K ;"
   , "snd p = p K1 ;"
