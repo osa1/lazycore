@@ -299,7 +299,7 @@ dispatch Le state = comparison (<=) state
 dispatch Gt state = comparison (>) state
 dispatch Ge state = comparison (>=) state
 
-dispatch (Cond t f) state = putStack as (putCode ((if condB then f else t) ++ i) state)
+dispatch (Cond t f) state = putStack as (putCode ((if condB then t else f) ++ i) state)
   where
     i = getCode state
     (a : as) = getStack state
