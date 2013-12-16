@@ -261,7 +261,10 @@ dispatch Unwind state = newState (hLookup heap a)
     ((i, s) : ds)  = getDump state
 
     newState (NInd n) = putCode [Unwind] (putStack (n : as) state)
-    newState NNum{}   = putCode i (putStack (a : s) (putDump ds state))
+    newState NNum{}
+      | length stack /= 1 = error $ "unwinding an int, but stack has more elements: " ++ iDisplay (showStack state)
+      | length (getCode state) /= 0 = error $ "unwinding an int, but code part has more elements"
+      | otherwise = putCode i (putStack (a : s) (putDump ds state))
     newState (NAp a1 _) = putCode [Unwind] (putStack (a1 : a : as) state)
     newState (NGlobal n c)
       | length as < n = error $
