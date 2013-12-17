@@ -91,7 +91,6 @@ pprExpr (ELet isrec defns expr) =
   where
     keyword = if isrec then "letrec" else "let"
 pprExpr (ENum n) = iNum n
-pprExpr (EConstr tag arity) = iConcat [ iStr "Pack{", iInterleave (iStr ",") (map iNum [tag, arity]) ]
 pprExpr (ELam names body) = iConcat (iStr "(\\" : (map iStr names) ++ [iStr ". ", pprExpr body, iStr ")"])
 
 pprDefns :: [(Name, CoreExpr)] -> Iseq

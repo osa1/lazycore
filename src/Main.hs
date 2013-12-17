@@ -124,7 +124,6 @@ instantiate (EVar v) heap env = (heap, val)
     val = case M.lookup v env of
             Nothing -> error $ "Undefined name " ++ show v ++ "\n" ++ show env
             Just val' -> val'
-instantiate (EConstr tag arity) heap env = instantiateConstr tag arity heap env
 instantiate (ELet isrec defs body) heap env = instantiateLet isrec defs body heap env
 instantiate (ECase e alts) _ _ = error "Can't instantiate case exprs"
 

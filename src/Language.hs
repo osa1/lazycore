@@ -6,7 +6,6 @@ import Prelude hiding (seq)
 data Expr a
     = EVar Name             -- Variables
     | ENum Int              -- Numbers
-    | EConstr Int Int       -- Constructor tag arity
     | EAp (Expr a) (Expr a) -- Applications
     | ELet                  -- Let(rec) expressions
         IsRec               --   boolean with True = recursive,

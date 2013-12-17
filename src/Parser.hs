@@ -20,7 +20,7 @@ int :: Parser Int
 int = read <$> (many1 digit <* spaces)
 
 keywords :: [String]
-keywords = ["let", "letrec", "case", "in", "of", "Pack"]
+keywords = ["let", "letrec", "case", "in", "of"]
 
 program :: Parser CoreProgram
 program = sc `sepBy` spChar ';'
@@ -114,15 +114,6 @@ binop = choice [ arithop, relop, boolop ]
     boolop = choice [ spStr "&", spStr "|" ]
 
 aexp :: Parser CoreExpr
-aexp = choice [ EVar <$> try var, ENum <$> int, pack, paren ] <* spaces
+aexp = choice [ EVar <$> try var, ENum <$> int, paren ] <* spaces
   where
-    pack = do
-      spStr "Pack"
-      spChar '{'
-      tag <- int
-      spChar ','
-      arity <- int
-      spStr "}"
-      return $ EConstr tag arity
-
     paren = spStr "(" >> expr <* spStr ")"
