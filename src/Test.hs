@@ -43,4 +43,9 @@ unitTests = testGroup "G-machine unit tests"
   , testCase "pgm13 (gcd)" $ stackTop (runProg' pgm13) @?= Right (NNum 2)
   , testCase "pgm14 (fib)" $ stackTop (runProg' pgm14) @?= Right (NNum 5)
   , testCase "pgm15 (infinite pair)" $ stackTop (runProg' pgm15) @?= Right (NNum 4)
+  , testCase "pgm16 (length nil with ADTs)" $ stackTop (runProg' pgm16) @?= Right (NNum 0)
+  , testCase "pgm17 (length lst with ADTs)" $ stackTop (runProg' pgm17) @?= Right (NNum 3)
+  , testCase "pgm18 (nth)" $ stackTop (runProg' pgm18) @?= Right (NNum 2)
+  , testCase "pgm19 (repeat)" $ stackTop (runProg' pgm19) @?= Right (NNum 3)
+  , testCase "weird (bug)" $ stackTop (runProg' weird) @?= Right (NNum 6)
   ]

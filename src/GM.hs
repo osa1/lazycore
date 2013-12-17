@@ -11,6 +11,8 @@ import Programs
 
 import qualified Text.Parsec as P
 import qualified Data.Map.Strict as M
+import qualified Data.List as L
+import Data.Maybe
 
 --import Debug.Trace
 
@@ -20,6 +22,13 @@ runProg = showResults . eval . compile . parse
 
 runProg' :: String -> GmState
 runProg' = eval' . compile . parse
+
+runProgDumpHeap :: String -> IO (M.Map Int Node)
+runProgDumpHeap prog = do
+    let states = eval . compile . parse $ prog
+    putStr $ showResults states
+    let (_, _, heap) = getHeap (last states)
+    return heap
 
 compileProg :: String -> String
 compileProg = iDisplay . showCompileState . compile . parse
@@ -55,6 +64,7 @@ data Node
     | NAp Addr Addr         -- Applications
     | NGlobal Int GmCode    -- Globals
     | NInd Addr             -- Indirections
+    | NConstr Int [Addr]    -- Saturated data constructor
     deriving ( Show, Eq )
 
 data Instruction
@@ -71,6 +81,9 @@ data Instruction
     | Add | Sub | Mul | Div | Neg
     | Eq | Ne | Lt | Le | Gt | Ge
     | Cond GmCode GmCode
+    | Pack Int Int
+    | Casejump [(Int, GmCode)]
+    | Split Int
     deriving ( Show, Eq )
 
 --
@@ -137,6 +150,9 @@ compiledPrimitives =
     , ("<=", 2, [Push 1, Eval, Push 1, Eval, Le, Update 2, Pop 2, Unwind])
     , (">=", 2, [Push 1, Eval, Push 1, Eval, Ge, Update 2, Pop 2, Unwind])
     , ("if", 3, [Push 0, Eval, Cond [Push 1] [Push 2], Update 3, Pop 3, Unwind])
+
+    , ("nil", 0, [Pack 1 0, Update 0, Unwind])
+    , ("cons", 2, [Push 1, Push 1, Pack 2 2, Slide 2, Update 0, Unwind])
     ]
 
 allocateSc :: GmHeap -> GmCompiledSC -> (GmHeap, (Name, Addr))
@@ -166,6 +182,15 @@ compileC (EAp e1 e2) env = compileC e2 env ++ compileC e1 (argOffset 1 env) ++ [
 compileC (ELet recursive defs e) env
   | recursive = compileLetrec defs e env
   | otherwise = compileLet    defs e env
+compileC (ECase expr alts) env = compileC expr env ++ [Eval, Casejump $ compileAlts alts env]
+
+compileAlts :: [CoreAlt] -> GmEnvironment -> [(Int, GmCode)]
+compileAlts [] _ = []
+compileAlts ((tag, args, rhs) : rest) env =
+    (tag, Split (length args) : compileC rhs (rhsEnv args env) ++ [Slide (length args)]) : compileAlts rest env
+  where
+    rhsEnv :: [Name] -> GmEnvironment -> GmEnvironment
+    rhsEnv argNames env = argOffset (length argNames) env `M.union` M.fromList (zip argNames [0..])
 
 argOffset :: Int -> GmEnvironment -> GmEnvironment
 argOffset n env = M.map (+ n) env
@@ -265,6 +290,11 @@ dispatch Unwind state = newState (hLookup heap a)
       | length stack /= 1 = error $ "unwinding an int, but stack has more elements: " ++ iDisplay (showStack state)
       | length (getCode state) /= 0 = error $ "unwinding an int, but code part has more elements"
       | otherwise = putCode i (putStack (a : s) (putDump ds state))
+    newState NConstr{}
+      | length stack /= 1 = error $ "unwinding a constructor, but stack has more elements:\n" ++ iDisplay (showStack state)
+      | length (getCode state) /= 0 = error $ "unwinding an constructor, but code part has more elements"
+      | otherwise = putCode i (putStack (a : s) (putDump ds state))
+      {-= putCode i (putStack (a : s) (putDump ds state))-}
     newState (NAp a1 _) = putCode [Unwind] (putStack (a1 : a : as) state)
     newState (NGlobal n c)
       | length as < n = error $
@@ -301,6 +331,28 @@ dispatch Eval state = putCode [Unwind] (putStack [a] (putDump ((code, as) : dump
     (a : as) = getStack state
     code = getCode state
     dump = getDump state
+
+dispatch (Pack tag arity) state = putStack (a : stack') (putHeap heap' state)
+  where
+    stack = getStack state
+    (args, stack') = L.splitAt arity stack
+    (heap', a) = hAlloc (getHeap state) (NConstr tag args)
+
+dispatch (Split _) state = -- argument of Split is unused now,
+                           -- we now it's always equal to length of argument list
+    putStack (args ++ as) state
+  where
+    (a : as) = getStack state
+    (NConstr _ args) = hLookup (getHeap state) a
+
+dispatch (Casejump cases) state = putCode (caseCode ++ getCode state) state
+  where
+    (a : _) = getStack state
+
+    (NConstr tag _) = case hLookup (getHeap state) a of
+                        n@NConstr{} -> n
+                        _ -> error $ "casejump on " ++ iDisplay (showNode state a) ++ " heap: " ++ (show $ (\(_, _, h) -> h) (getHeap state))
+    caseCode = fromJust $ lookup tag cases
 
 dispatch Add state = arithmetic2 (+) state
 dispatch Sub state = arithmetic2 (-) state
@@ -340,7 +392,7 @@ unboxInteger :: Addr -> GmState -> Int
 unboxInteger a state = ub (hLookup (getHeap state) a)
   where
     ub (NNum i) = i
-    ub _        = error "Unboxing a non-integer"
+    ub n        = error $ "Unboxing a non-integer " ++ show n
 
 primitive1 :: (b -> GmState -> GmState) -- boxing function
            -> (Addr -> GmState -> a)    -- unboxing function
@@ -418,15 +470,20 @@ showStack s = iConcat
 showStackItem :: GmState -> Addr -> Iseq
 showStackItem s a = iConcat
     [ iStr (showaddr a), iStr ": ",
-      showNode s a (hLookup (getHeap s) a) ]
+      showNode s a ]
 
-showNode :: GmState -> Addr -> Node -> Iseq
-showNode _ _ (NNum n) = iNum n
-showNode s a (NGlobal ar _) = iConcat [ iStr "Global ", iStr v, iStr "[", iNum ar, iStr "]" ]
-  where v = head [n | (n, b) <- M.toList (getGlobals s), a == b]
-showNode _ _ (NAp a1 a2) = iConcat [ iStr "Ap ", iStr (showaddr a1),
-                                     iStr " ", iStr (showaddr a2) ]
-showNode _ _ (NInd n) = iConcat [ iStr "#", iNum n ]
+showNode :: GmState -> Addr -> Iseq
+showNode s a =
+    case hLookup (getHeap s) a of
+      NNum n -> iNum n
+      NGlobal ar _ -> iConcat [ iStr "Global ", iStr v, iStr "[", iNum ar, iStr "]" ]
+        where v = head [n | (n, b) <- M.toList (getGlobals s), a == b]
+      NAp a1 a2 -> iConcat [ iStr "Ap ", iStr (showaddr a1), iStr " ", iStr (showaddr a2) ]
+      NInd n -> iConcat [ iStr "#", iNum n ]
+      NConstr tag args -> iConcat
+        [ iStr "<", iStr (show tag), iStr ": ",
+          iInterleave (iStr ",") (map (showNode s) args),
+          iStr ">" ]
 
 showDump :: GmState -> Iseq
 showDump s = iConcat
