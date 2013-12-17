@@ -113,5 +113,5 @@ weird = unlines
   , "     <1> -> 0 ;"
   , "     <2> h t -> h + (weird l1 t)) ;"
   , "main = let lst = cons 1 (cons 2 (cons 3 nil))"
-  , "       in weird lst"
+  , "       in weird lst lst"
   ]

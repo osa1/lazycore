@@ -256,6 +256,7 @@ step state =
     (i : is) = getCode state
 
 dispatch :: Instruction -> GmState -> GmState
+--dispatch instr _ | trace ("running instruction: " ++ iDisplay (showInstruction instr)) False = undefined
 
 dispatch (Pushglobal name) state = putStack (a : getStack state) state
   where a = case M.lookup name (getGlobals state) of
@@ -299,7 +300,8 @@ dispatch Unwind state = newState (hLookup heap a)
     newState (NGlobal n c)
       | length as < n = error $
           concat [ "Unwinding with too few arguments. "
-                 , show n, " - ", show c ]
+                 , show n, " - ", show c, "\n"
+                 , "stack:\n", iDisplay (showStack state)]
       | otherwise     = putCode c (putStack (rearrange n heap stack) state)
 
     rearrange :: Int -> GmHeap -> GmStack -> GmStack
