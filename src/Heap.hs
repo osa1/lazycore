@@ -34,7 +34,7 @@ hSize :: Heap a -> Int
 hSize (size, _, _) = size
 
 showaddr :: Addr -> String
-showaddr a = "#" ++ show a
+showaddr a = '#' : show a
 
 hNull :: Addr
 hNull = 0

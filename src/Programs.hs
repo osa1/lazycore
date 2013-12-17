@@ -115,3 +115,13 @@ weird = unlines
   , "main = let lst = cons 1 (cons 2 (cons 3 nil))"
   , "       in weird lst lst"
   ]
+
+pgm20 = unlines
+  [ "nth1 l ="
+  , "  (case l of"
+  , "     <1> -> 0 ;"
+  , "     <2> h t -> (case t of"
+  , "                   <1> -> 0 ;"
+  , "                   <2> h1 t1 -> h1)) ;"
+  , "main = nth1 (cons 1 (cons 2 (cons 3 nil)))"
+  ]

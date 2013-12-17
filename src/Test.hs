@@ -27,25 +27,28 @@ stackTop state
     heap  = getHeap state
 
 unitTests :: TestTree
-unitTests = testGroup "G-machine unit tests"
-  [ testCase "pgm1" $ stackTop (runProg' pgm1) @?= Right (NNum 3)
-  , testCase "pgm2" $ stackTop (runProg' pgm2) @?= Right (NNum 3)
-  , testCase "pgm3" $ stackTop (runProg' pgm3) @?= Right (NNum 3)
-  , testCase "pgm4" $ stackTop (runProg' pgm4) @?= Right (NNum 3)
-  , testCase "pgm5" $ stackTop (runProg' pgm5) @?= Right (NNum 3)
-  , testCase "pgm6" $ stackTop (runProg' pgm6) @?= Right (NNum 4)
-  , testCase "pgm7" $ stackTop (runProg' pgm7) @?= Right (NNum 3)
-  , testCase "pgm8" $ stackTop (runProg' pgm8) @?= Right (NNum 4)
-  , testCase "pgm9 (simple arithmetic)" $ stackTop (runProg' pgm9) @?= Right (NNum 17)
-  , testCase "pgm10" $ stackTop (runProg' pgm10) @?= Right (NNum 8)
-  , testCase "pgm11 (list len)" $ stackTop (runProg' pgm11) @?= Right (NNum 3)
-  , testCase "pgm12 (fac)" $ stackTop (runProg' pgm12) @?= Right (NNum 120)
-  , testCase "pgm13 (gcd)" $ stackTop (runProg' pgm13) @?= Right (NNum 2)
-  , testCase "pgm14 (fib)" $ stackTop (runProg' pgm14) @?= Right (NNum 5)
-  , testCase "pgm15 (infinite pair)" $ stackTop (runProg' pgm15) @?= Right (NNum 4)
-  , testCase "pgm16 (length nil with ADTs)" $ stackTop (runProg' pgm16) @?= Right (NNum 0)
-  , testCase "pgm17 (length lst with ADTs)" $ stackTop (runProg' pgm17) @?= Right (NNum 3)
-  , testCase "pgm18 (nth)" $ stackTop (runProg' pgm18) @?= Right (NNum 2)
-  , testCase "pgm19 (repeat)" $ stackTop (runProg' pgm19) @?= Right (NNum 3)
-  , testCase "weird (bug)" $ stackTop (runProg' weird) @?= Right (NNum 6)
-  ]
+unitTests = testGroup "G-machine unit tests" $ map mkTestCase
+    [ ("pgm1", pgm1, NNum 3)
+    , ("pgm2", pgm2, NNum 3)
+    , ("pgm3", pgm3, NNum 3)
+    , ("pgm4", pgm4, NNum 3)
+    , ("pgm5", pgm5, NNum 3)
+    , ("pgm6", pgm6, NNum 4)
+    , ("pgm7", pgm7, NNum 3)
+    , ("pgm8", pgm8, NNum 4)
+    , ("pgm9", pgm9, NNum 17)
+    , ("pgm10", pgm10, NNum 8)
+    , ("pgm11 (list len)", pgm11, NNum 3)
+    , ("pgm12 (fac)", pgm12, NNum 120)
+    , ("pgm13 (gcd)", pgm13, NNum 2)
+    , ("pgm14 (fib)", pgm14, NNum 5)
+    , ("pgm15 (infinite pair)", pgm15, NNum 4)
+    , ("pgm16 (length nil with ADTs)", pgm16, NNum 0)
+    , ("pgm17 (length lst with ADTs)", pgm17, NNum 3)
+    , ("pgm18 (nth)", pgm18, NNum 2)
+    , ("pgm19 (repeat)", pgm19, NNum 3)
+    , ("weird (bug)", weird, NNum 6)
+    , ("pgm20 (nested case)", pgm20, NNum 2)
+    ]
+  where
+    mkTestCase (name, pgm, ret) = testCase name $ stackTop (runProg' pgm) @?= Right ret

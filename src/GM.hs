@@ -193,7 +193,7 @@ compileAlts ((tag, args, rhs) : rest) env =
     rhsEnv argNames env = argOffset (length argNames) env `M.union` M.fromList (zip argNames [0..])
 
 argOffset :: Int -> GmEnvironment -> GmEnvironment
-argOffset n env = M.map (+ n) env
+argOffset n = M.map (+ n)
 
 compileLet :: [(Name, CoreExpr)] -> GmCompiler
 compileLet defs expr env = compileLet' defs env ++ compileC expr env' ++ [Slide (length defs)]
@@ -211,7 +211,7 @@ compileLetrec defs expr env = [Alloc n] ++ compDefs ++ compileC expr env' ++ [Sl
     n = length defs
 
     compDefs :: GmCode
-    compDefs = concat $ map (\(i, def) -> compileC def env' ++ [Update i]) (zip [n-1, n-2 .. 0] (map snd defs))
+    compDefs = concatMap (\(i, def) -> compileC def env' ++ [Update i]) (zip [n-1, n-2 .. 0] (map snd defs))
 
 mkLetEnv :: [(Name, CoreExpr)] -> GmEnvironment -> GmEnvironment
 mkLetEnv defs env = M.fromList (zip (map fst defs) [n-1, n-2 .. 0]) `M.union` argOffset n env
@@ -289,7 +289,7 @@ dispatch Unwind state = newState (hLookup heap a)
     newState (NInd n) = putCode [Unwind] (putStack (n : as) state)
     newState NNum{}
       | length stack /= 1 = error $ "unwinding an int, but stack has more elements: " ++ iDisplay (showStack state)
-      | length (getCode state) /= 0 = error $ "unwinding an int, but code part has more elements"
+      | not (null (getCode state)) = error "unwinding an int, but code part has more elements"
       | otherwise = putCode i (putStack (a : s) (putDump ds state))
     newState NConstr{}
       | length stack /= 1 = error $ "unwinding a constructor, but stack has more elements:\n" ++ iDisplay (showStack state)
@@ -360,7 +360,7 @@ dispatch Add state = arithmetic2 (+) state
 dispatch Sub state = arithmetic2 (-) state
 dispatch Mul state = arithmetic2 (*) state
 dispatch Div state = arithmetic2 div state
-dispatch Neg state = arithmetic1 (\i -> (-i)) state
+dispatch Neg state = arithmetic1 (\i -> -i) state
 dispatch Eq state = comparison (==) state
 dispatch Ne state = comparison (/=) state
 dispatch Lt state = comparison (<) state
